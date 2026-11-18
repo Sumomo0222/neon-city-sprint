@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>霓虹城市冲刺 · NEON CITY SPRINT</title>
+<meta name="description" content="霓虹城市冲刺——打开即玩的伪3D夜景跑酷小游戏，躲避障碍、收集能量币、冲出最远距离。">
+<meta name="theme-color" content="#05060f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070a18'/%3E%3Cpath d='M14 46 L30 14 L34 30 L50 18' fill='none' stroke='%2322e6ff' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='50' cy='44' r='5' fill='%23ff3ecd'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- ====== 场景层 ====== -->
+  <div id="scene" aria-hidden="true">
+    <!-- 夜空 -->
+    <div class="sky">
+      <div class="moon"></div>
+      <div class="stars" id="stars"></div>
+    </div>
+
+    <!-- 远景：对向车流光轨 + 高架列车剪影 -->
+    <div class="traffic-layer">
+      <div class="traffic t-lights"></div>
+      <div class="traffic t-train"></div>
+    </div>
+
+    <!-- 视差城市剪影（JS 生成） -->
+    <div class="skyline sky-far"><svg id="sky-far-svg" preserveAspectRatio="none"></svg></div>
+    <div class="skyline sky-near"><svg id="sky-near-svg" preserveAspectRatio="none"></svg></div>
+    <div class="horizon-glow"></div>
+
+    <!-- 地面 / 道路（透视梯形，JS 计算 clip-path） -->
+    <div class="ground"></div>
+    <div class="road" id="road">
+      <div class="road-sheen"></div>
+    </div>
+
+    <!-- 跑道实体：车道虚线、灯柱、护栏桩、广告牌（JS 投影） -->
+    <div id="scenery"></div>
+
+    <!-- 游戏实体：障碍 / 能量币 / 特效 -->
+    <div id="entities"></div>
+
+    <!-- 玩家 -->
+    <div id="player-wrap">
+      <div class="p-shadow" id="p-shadow"></div>
+      <div id="player">
+        <svg class="runner" id="runner" viewBox="0 0 120 190" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="suit" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#1a2350"/>
+              <stop offset="1" stop-color="#0b0f26"/>
+            </linearGradient>
+          </defs>
+          <!-- 腿（髋部为轴） -->
+          <g class="leg leg-l">
+            <g class="thigh">
+              <rect x="42" y="96" width="16" height="46" rx="8" fill="url(#suit)" stroke="#22e6ff" stroke-width="2.5"/>
+              <g class="shin">
+                <rect x="43" y="136" width="14" height="42" rx="7" fill="#10173a" stroke="#22e6ff" stroke-width="2.5"/>
+                <rect x="40" y="172" width="20" height="10" rx="5" fill="#ff3ecd"/>
+              </g>
+            </g>
+          </g>
+          <g class="leg leg-r">
+            <g class="thigh">
+              <rect x="62" y="96" width="16" height="46" rx="8" fill="url(#suit)" stroke="#22e6ff" stroke-width="2.5"/>
+              <g class="shin">
+                <rect x="63" y="136" width="14" height="42" rx="7" fill="#10173a" stroke="#22e6ff" stroke-width="2.5"/>
+                <rect x="60" y="172" width="20" height="10" rx="5" fill="#ff3ecd"/>
+              </g>
+            </g>
+          </g>
+          <!-- 躯干 + 背光核 -->
+          <rect x="38" y="52" width="44" height="58" rx="16" fill="url(#suit)" stroke="#22e6ff" stroke-width="2.5"/>
+          <rect x="50" y="64" width="20" height="30" rx="8" fill="#22e6ff" opacity="0.85"/>
+          <path d="M38 78 h44" stroke="#ff3ecd" stroke-width="3" opacity="0.9"/>
+          <!-- 手臂（肩部为轴） -->
+          <g class="arm arm-l">
+            <g class="u-arm">
+              <rect x="26" y="56" width="13" height="40" rx="6.5" fill="url(#suit)" stroke="#7b5cff" stroke-width="2.5"/>
+              <g class="f-arm">
+                <rect x="26" y="90" width="11" height="36" rx="5.5" fill="#10173a" stroke="#7b5cff" stroke-width="2.5"/>
+              </g>
+            </g>
+          </g>
+          <g class="arm arm-r">
+            <g class="u-arm">
+              <rect x="81" y="56" width="13" height="40" rx="6.5" fill="url(#suit)" stroke="#7b5cff" stroke-width="2.5"/>
+              <g class="f-arm">
+                <rect x="83" y="90" width="11" height="36" rx="5.5" fill="#10173a" stroke="#7b5cff" stroke-width="2.5"/>
+              </g>
+            </g>
+          </g>
+          <!-- 头部 -->
+          <g class="head">
+            <circle cx="60" cy="30" r="17" fill="url(#suit)" stroke="#22e6ff" stroke-width="2.5"/>
+            <path d="M46 32 q14 12 28 0 l0 -6 q-14 -8 -28 0 z" fill="#22e6ff" opacity="0.95"/>
+            <path d="M74 18 q10 4 8 16" stroke="#ff3ecd" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 速度线 / 暗角 / 碰撞闪光 -->
+    <div class="speedlines" id="speedlines">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div class="vignette"></div>
+    <div class="crash-flash" id="crash-flash"></div>
+  </div>
+
+  <!-- ====== HUD ====== -->
+  <header id="hud" class="hidden">
+    <div class="hud-box hud-left">
+      <div class="hud-dist"><span id="hud-dist">0</span><small>m</small></div>
+      <div class="hud-coin"><i class="coin-ico"></i><span id="hud-coin">0</span></div>
+    </div>
+    <div class="hud-box hud-right">
+      <div class="hud-speed"><span id="hud-speed">0</span><small>km/h</small></div>
+      <div class="hud-lane" id="hud-lane" title="当前轨道">
+        <i></i><i></i><i></i>
+      </div>
+    </div>
+  </header>
+  <button id="btn-mute" class="icon-btn" aria-label="声音开关" title="声音开关">🔊</button>
+  <p id="hint" class="hidden">← → 切换轨道 · 空格 跳跃</p>
+
+  <!-- ====== 移动端按钮 ====== -->
+  <div id="controls" class="hidden">
+    <div class="ctrl-side">
+      <button id="btn-left" class="ctrl-btn" aria-label="左移">◀</button>
+      <button id="btn-right" class="ctrl-btn" aria-label="右移">▶</button>
+    </div>
+    <button id="btn-jump" class="ctrl-btn ctrl-jump" aria-label="跳跃">▲<span>跳</span></button>
+  </div>
+
+  <!-- ====== 开始界面 ====== -->
+  <section id="overlay-start" class="overlay">
+    <div class="title-block">
+      <h1 class="game-title"><span class="t-neon">霓虹城市</span><span class="t-sprint">冲刺</span></h1>
+      <p class="game-sub">NEON CITY SPRINT</p>
+    </div>
+    <div class="start-panel">
+      <p class="start-desc">夜色中的霓虹都市，向前的路不会停。<br>切换轨道、跃过路障、收集能量币，冲出你的最远纪录！</p>
+      <button id="btn-start" class="big-btn">开始冲刺</button>
+      <p class="ctrl-tip show-touch">使用屏幕按钮：◀ ▶ 切换轨道 · ▲ 跳跃</p>
+      <p class="ctrl-tip show-key">键盘：← → 切换轨道 · 空格 跳跃</p>
+      <p class="best-line" id="best-line-start"></p>
+    </div>
+  </section>
+
+  <!-- ====== 结束界面 ====== -->
+  <section id="overlay-over" class="overlay hidden">
+    <div class="over-card">
+      <p class="over-cap">本次冲刺成绩</p>
+      <div class="grade" id="grade">A</div>
+      <div class="stat-rows">
+        <div class="stat-row"><span>冲刺距离</span><b id="ov-dist">0 m</b></div>
+        <div class="stat-row"><span>能量币</span><b id="ov-coin">0</b></div>
+        <div class="stat-row"><span>最高速度</span><b id="ov-speed">0 km/h</b></div>
+        <div class="stat-row best"><span>最远纪录</span><b id="ov-best">0 m</b></div>
+      </div>
+      <p class="new-record hidden" id="new-record">★ 新纪录！★</p>
+      <button id="btn-restart" class="big-btn">再来一次</button>
+      <button id="btn-home" class="ghost-btn">回到标题</button>
+    </div>
+  </section>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
